@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contractile Particle Model</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        
+        .simulation-area {
+            border: 1px solid #ccc;
+        }
+        
+        .controls-stats {
+            min-width: 200px;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        .controls button {
+            display: block;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .stats {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        
+        .stats h3 {
+            margin-top: 0;
+        }
+        
+        .stat-item {
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            font-weight: bold;
+        }
+        
+        .completion-message {
+            color: green;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Contractile Particle Model Simulation</h1>
+    
+    <div class="container">
+        <div class="simulation-area">
+            <canvas id="simulation"></canvas>
+        </div>
+        
+        <div class="controls-stats">
+            <div class="controls">
+                <button id="start">Start</button>
+                <button id="pause">Pause</button>
+                <button id="reset">Reset</button>
+            </div>
+            
+            <div class="stats">
+                <h3>Statistics</h3>
+                <div class="stat-item">
+                    <span class="stat-label">Particles:</span> 
+                    <span id="particle-count">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Reached target:</span> 
+                    <span id="particles-reached">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Time step:</span> 
+                    <span id="time-step">0.000s</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Elapsed time:</span> 
+                    <span id="elapsed-time">0.00s</span>
+                </div>
+                <div id="completion-message" class="completion-message" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="contractile_particle_model.js"></script>
+</body>
+</html>
