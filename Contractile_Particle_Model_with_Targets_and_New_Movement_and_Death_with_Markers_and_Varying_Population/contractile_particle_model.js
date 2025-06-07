@@ -5,7 +5,6 @@ const targetColors = ['green', 'purple', 'orange', 'cyan', 'magenta']; // List o
     %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
     We add the various demographic intializations for our population here
 */
-
 // Define demographic groups with their characteristics
 const DEMOGRAPHICS = {
     YOUTH: {
@@ -15,7 +14,7 @@ const DEMOGRAPHICS = {
         vdMax: 2.0,     // Faster maximum velocity
         color: '#4CAF50',  // Green tint
         stressThreshold: 2,  // Lower stress tolerance
-        crushThreshold: 2,
+        crushThreshold: 2, // Lower crush threshold
         proportion: 0.2  // 20% of population
     },
     ADULT: {
@@ -49,7 +48,7 @@ const DEMOGRAPHICS = {
 */
 // The particle/pedestrian
 class Particle {
-    constructor(x, y, radius) {
+    constructor(x, y, demographic='ADULT') {
         this.x = x;
         this.y = y;
 
@@ -60,7 +59,6 @@ class Particle {
         this.rMin = this.demo.rMin;
         this.rMax = this.demo.rMax;
         this.vdMax = this.demo.vdMax;
-        this.r = radius;
 
         this.vd = { x: 0, y: 0, magnitude: 0 };
         this.ve = { x: 0, y: 0, magnitude: 0 };
@@ -79,7 +77,7 @@ class Particle {
 */
 // Marker for the point of death of a particle
 class DeathMarker {
-    constructor(x, y) {
+    constructor(x, y, demographic) {
         this.x = x;
         this.y = y;
         this.demographic = demographic;
@@ -109,13 +107,17 @@ class Boundary {
 class ParticleModel {
     constructor(options = {}) {
         // Model parameters
-        this.rMin = options.rMin || 0.2; // Minimum radius (m)
+        /*
+            %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+            We modify ParticleModel class to have demographic-specific parameters
+        */
+        const minRadius = Math.min(...Object.values(DEMOGRAPHICS).map(d => d.rMin)); // Minimum radius (m), calculated based on most restrictive demographic
         this.rMax = options.rMax || 0.8; // Maximum radius (m)
-        this.vdMax = options.vdMax || 1.5; // Maximum desired velocity (m/s)
-        this.ve = this.vdMax; // Escape velocity magnitude (m/s)
+        const maxVelocity = Math.max(...Object.values(DEMOGRAPHICS).map(d => d.vdMax)); // Maximum desired velocity (m/s), calculated based on most restrictive demographic
+        // this.ve = this.vdMax; // Escape velocity magnitude (m/s)
         this.beta = options.beta || 1; // Exponent for velocity-radius relationship
         this.tau = options.tau || 0.5; // Time to reach maximum radius (s)
-        this.dt = this.rMin / (2 * Math.max(this.vdMax, this.ve)); // Time step
+        this.dt = minRadius / (2 * maxVelocity); // Time step, calculated based on most restrictive demographic
 
         // Particle stress and death parameters
         this.stressRate = options.stressRate || 2.0;       // Stress accumulation per contact per second
@@ -134,12 +136,64 @@ class ParticleModel {
         this.totalParticlesCreated = 0;
         this.startTime = null;
         this.endTime = null;
+
+        /*
+            %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+            We modify ParticleModel class to have also track demographics
+        */
+        // Demographics tracking
+        this.demographicStats = {};
+        Object.keys(DEMOGRAPHICS).forEach(demo => {
+            this.demographicStats[demo] = {
+                created: 0,
+                reachedTarget: 0,
+                died: 0,
+                current: 0
+            };
+        });
     }
 
-    addParticle(x, y, radius = this.rMin) {
-        this.particles.push(new Particle(x, y, radius));
+    
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify addParticle class to use/update demographic info
+    */
+    addParticle(x, y, demographic = 'ADULT') {
+        this.particles.push(new Particle(x, y, demographic));
         this.totalParticlesCreated++;
+        this.demographicStats[demographic].created++;
+        this.demographicStats[demographic].current++;
     }
+    
+
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify addParticle to addParticleWithDemographics according to the distributions we define
+    */
+    addParticlesWithDemographics(x, y, count = 1) {
+        for (let i = 0; i < count; i++) {
+            const rand = Math.random();
+            let demographic = 'ADULT'; // Initialize demographic
+            let cumulative = 0;
+            
+            // This randomly samples the particle demographic according to the proportion we declared
+            // Essentially, it splits a line from 0 to 1 up in slices, where if the randomly generated number
+            // Lies in this slice, it is the demographic chosen for this particle
+            for (const [demo, data] of Object.entries(DEMOGRAPHICS)) {
+                cumulative += data.proportion; 
+                if (rand <= cumulative) {
+                    demographic = demo;
+                    break;
+                }
+            }
+            
+            // Add some randomness to position
+            const offsetX = (Math.random() - 0.5) * 0.5;
+            const offsetY = (Math.random() - 0.5) * 0.5;
+            this.addParticle(x + offsetX, y + offsetY, demographic);
+        }
+    }
+
 
     addTarget(x, y) {
         this.targets.push(new Target(x, y));
@@ -170,6 +224,10 @@ class ParticleModel {
         }
     }
 
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify removeParticlesAtTarget to update demographic statistics
+    */
     removeParticlesAtTarget() {
         const targetRadius = 0.5; // How close to target to consider "arrived" (in meters)
         this.particles = this.particles.filter(particle => {
@@ -182,6 +240,8 @@ class ParticleModel {
             // If particle reached target
             if (distance <= targetRadius) {
                 this.particlesReachedTarget++;
+                this.demographicStats[particle.demographic].reachedTarget++;
+                this.demographicStats[particle.demographic].current--;
 
                 // If this was the last particle, record end time
                 if (this.particlesReachedTarget + this.particlesDied === this.totalParticlesCreated) {
@@ -230,9 +290,14 @@ class ParticleModel {
         };
     }
 
-    // Calculate desired velocity based on radius (Equation 1)
-    calculateDesiredVelocity(radius) {
-        return this.vdMax * Math.pow((radius - this.rMin) / (this.rMax - this.rMin), this.beta);
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify calculateDesiredVelocity to use particle demographic information
+    */
+    // Calculate desired velocity based on particle information (Equation 1)
+    calculateDesiredVelocity(particle) {
+        const normalizedRadius = (particle.r - particle.rMin) / (particle.rMax - particle.rMin);
+        return particle.vdMax * Math.pow(normalizedRadius, this.beta);
     }
 
     // Find contacts and calculate escape velocity
@@ -312,33 +377,45 @@ class ParticleModel {
             }
         }
 
+        /*
+            %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+            We modify this for loop to use to use demographic information:
+        */
         // Normalize escape velocities (Equation 6)
         for (const particle of this.particles) {
             if (particle.inContact) {
                 const magnitude = Math.sqrt(particle.ve.x ** 2 + particle.ve.y ** 2);
                 if (magnitude > 0) {
-                    particle.ve.x = (particle.ve.x / magnitude) * this.ve;
-                    particle.ve.y = (particle.ve.y / magnitude) * this.ve;
-                    particle.ve.magnitude = this.ve;
+                    particle.ve.x = (particle.ve.x / magnitude) * particle.vdMax;
+                    particle.ve.y = (particle.ve.y / magnitude) * particle.vdMax;
+                    particle.ve.magnitude = particle.vdMax;
                 }
             }
         }
     }
 
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify adjustRadii to use demographic information:
+    */
     // Adjust radii according to the rules
     adjustRadii() {
         for (const particle of this.particles) {
             if (particle.inContact) {
                 // Reduce radius to minimum when in contact
-                particle.r = this.rMin;
+                particle.r = particle.rMin;
             } else {
                 // Increase radius when not in contact (Equation 8)
-                const dr = (this.rMax / this.tau) * this.dt;
-                particle.r = Math.min(particle.r + dr, this.rMax);
+                const dr = (particle.rMax / this.tau) * this.dt;
+                particle.r = Math.min(particle.r + dr, particle.rMax);
             }
         }
     }
 
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify computeDesiredVelocities to use particle demographic information
+    */
     // Compute desired velocities
     computeDesiredVelocities() {
         for (const particle of this.particles) {
@@ -353,7 +430,7 @@ class ParticleModel {
                 // Compute desired velocity direction (Equation 5)
                 if (distance > 0) {
                     // Magnitude based on radius (Equation 1)
-                    const magnitude = this.calculateDesiredVelocity(particle.r);
+                    const magnitude = this.calculateDesiredVelocity(particle); // use particle itself instead of particle.r
                     particle.vd.x = (dx / distance) * magnitude;
                     particle.vd.y = (dy / distance) * magnitude;
                     particle.vd.magnitude = magnitude;
@@ -364,11 +441,15 @@ class ParticleModel {
         }
     }
 
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify updatePositions to use particle demographic information
+    */
     // Update positions
     updatePositions() {
         for (const particle of this.particles) {
             let vx, vy;
-            if (particle.r > this.rMin) {
+            if (particle.r > particle.rMin) {
                 // Use desired velocity if not at minimum radius
                 vx = particle.vd.x;
                 vy = particle.vd.y;
@@ -384,6 +465,10 @@ class ParticleModel {
         }
     }
 
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify step to use particle demographic information
+    */
     // Single simulation step
     step() {
         this.findContacts();
@@ -391,8 +476,10 @@ class ParticleModel {
 
         // Addition for death of particles
         for (const particle of this.particles) {
+            const demo = particle.demo; // Get particle demographic
+
             // Only accumulate stress if above crush threshold
-            if (particle.contacts >= this.crushThreshold) {
+            if (particle.contacts >= demo.crushThreshold) {
                 particle.stress += this.stressRate * this.dt;
             }
             
@@ -402,16 +489,18 @@ class ParticleModel {
             }
     
             // Check for death
-            if (particle.stress >= this.stressThreshold) {
+            if (particle.stress >= demo.stressThreshold) {
                 particle.dead = true;
             }
         }
     
-        // Remove dead particles
+        // Remove dead particles, updated to track stats of demographic
         this.particles = this.particles.filter(particle => {
             if (particle.dead) {
                 this.particlesDied++;
-                this.deathMarkers.push(new DeathMarker(particle.x, particle.y));
+                this.demographicStats[particle.demographic].died++;
+                this.demographicStats[particle.demographic].current--;
+                this.deathMarkers.push(new DeathMarker(particle.x, particle.y, particle.demographic));
                 return false;
             }
             return true;
@@ -423,6 +512,11 @@ class ParticleModel {
         this.removeParticlesAtTarget();
     }
 
+    
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify reset to also reset demographic statistics
+    */
     // Reset simulation
     reset() {
         this.particles = [];
@@ -434,6 +528,14 @@ class ParticleModel {
         this.totalParticlesCreated = 0;
         this.startTime = null;
         this.endTime = null;
+        Object.keys(DEMOGRAPHICS).forEach(demo => {
+            this.demographicStats[demo] = {
+                created: 0,
+                reachedTarget: 0,
+                died: 0,
+                current: 0
+            };
+        });
     }
 }
 
@@ -480,6 +582,10 @@ class SimulationRenderer {
         }
     }
 
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify drawParticles to show the different demographics
+    */
     drawParticles() {
         for (const particle of this.model.particles) {
             // Get target color for this particle
@@ -487,15 +593,28 @@ class SimulationRenderer {
             const targetColor = targetIndex >= 0 ? targetColors[targetIndex % targetColors.length] : 'gray';
 
             
-            const stressRatio = particle.stress / this.model.stressThreshold;
-            const baseColor = particle.inContact ? 'red' : 'blue';
-            const stressColor = `rgba(255, ${255 - (stressRatio * 255)}, ${255 - (stressRatio * 255)}, 0.8)`;
+            const stressRatio = particle.stress / particle.demo.stressThreshold; // use demographic stress threshold
+            // Blend demographic color with stress indication
+            const baseColor = particle.demo.color;
+            const stressAlpha = Math.min(stressRatio * 0.7, 0.7);
+            const stressColor = particle.inContact ? 
+                `rgba(255, 0, 0, ${0.3 + stressAlpha})` : 
+                `rgba(0, 0, 255, ${0.3 + stressAlpha * 0.5})`;
             
-            // Draw particle
-            this.ctx.fillStyle = stressColor; // Use stress color
+            // Draw particle with demographic color as base
+            this.ctx.fillStyle = baseColor;
+            this.ctx.globalAlpha = 0.7;
             this.ctx.beginPath();
             this.ctx.arc(particle.x * this.scale, particle.y * this.scale, particle.r * this.scale, 0, Math.PI * 2);
             this.ctx.fill();
+
+            // Overlay stress color
+            this.ctx.fillStyle = stressColor;
+            this.ctx.globalAlpha = stressAlpha;
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x * this.scale, particle.y * this.scale, particle.r * this.scale, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.globalAlpha = 1.0;
 
             // Add a small colored dot to indicate target
             if (targetIndex >= 0) {
@@ -532,6 +651,10 @@ class SimulationRenderer {
     }
 
 
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify drawDeathMarkers to show the different demographics death markers
+    */
     drawDeathMarkers() {
         this.ctx.strokeStyle = 'red';
         this.ctx.lineWidth = 2;
@@ -540,8 +663,12 @@ class SimulationRenderer {
             const x = marker.x * this.scale;
             const y = marker.y * this.scale;
             const size = 4; // Size of the cross
+                    
+            // Use demographic color for death marker
+            this.ctx.strokeStyle = DEMOGRAPHICS[marker.demographic].color;
+            this.ctx.lineWidth = 2;
             
-            // Draw a red cross
+            // Draw a cross
             this.ctx.beginPath();
             this.ctx.moveTo(x - size, y - size);
             this.ctx.lineTo(x + size, y + size);
@@ -551,14 +678,18 @@ class SimulationRenderer {
         }
     }
 
-
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify updateStats to correctly update the statistics also for demographic
+    */
     updateStats() {
         // Update HTML elements
         document.getElementById('particle-count').textContent = this.model.particles.length;
         document.getElementById('particles-reached').textContent = this.model.particlesReachedTarget;
         document.getElementById('time-step').textContent = this.model.dt.toFixed(3) + 's';
         document.getElementById('particles-died').textContent = this.model.particlesDied;
-        
+        // Update demographic statistics
+        this.updateDemographicStats();
         
         if (this.model.startTime) {
             const currentTime = this.model.endTime || performance.now();
@@ -577,6 +708,39 @@ class SimulationRenderer {
             document.getElementById('elapsed-time').textContent = '0.00s';
             document.getElementById('completion-message').style.display = 'none';
         }
+    }
+
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We create updateDemographicStats to handle all the updates for the demographics
+    */
+    updateDemographicStats() {
+        // Create or update demographic display container
+        let demographicContainer = document.getElementById('demographic-stats');
+        if (!demographicContainer) {
+            demographicContainer = document.createElement('div');
+            demographicContainer.id = 'demographic-stats';
+            demographicContainer.style.cssText = 'margin-top: 10px; font-family: Arial, sans-serif; font-size: 12px;';
+            
+            // Find a good place to insert it (after existing stats)
+            const statsContainer = document.querySelector('.stats') || document.body;
+            statsContainer.appendChild(demographicContainer);
+        }
+        
+        // Build demographic stats HTML
+        let demographicHTML = '<div style="font-weight: bold; margin-bottom: 5px;">Demographics:</div>';
+        
+        Object.entries(this.model.demographicStats).forEach(([demo, stats]) => {
+            const demoData = DEMOGRAPHICS[demo];
+            demographicHTML += `
+                <div style="color: ${demoData.color}; margin-left: 10px; margin-bottom: 2px;">
+                    ${demoData.name}: ${stats.current} 
+                    (${stats.reachedTarget} reached, ${stats.died} died)
+                </div>
+            `;
+        });
+        
+        demographicContainer.innerHTML = demographicHTML;
     }
 }
 
@@ -662,9 +826,17 @@ function setupSimulation() {
     model.addTarget(17, 3);
     model.addTarget(17, 8);
 
+    /*
+        %%%%%%%%%%%%%%%%%%%%%%  MODIFICATION  %%%%%%%%%%%%%%%%%%%%%% 
+        We modify the particle creating loop to generate particles witht the
+        different demographics
+    */
     // Add particles
-    for (let i = 0; i < 200; i++) {
-        model.addParticle(2 + Math.random() * 12, 2 + Math.random() * 7);
+    for (let i = 0; i < 40; i++) {
+        // Generate x and y coordinates within the boundaries
+        const x = 2 + Math.random() * 12;
+        const y = 2 + Math.random() * 7;
+        model.addParticlesWithDemographics(x, y, 5); // Craetes 5 particles per call
     }
 
     model.findClosestTargets();
