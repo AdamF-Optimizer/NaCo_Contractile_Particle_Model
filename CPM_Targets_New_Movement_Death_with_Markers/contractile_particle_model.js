@@ -637,7 +637,7 @@ function setupSimulation() {
 
     const model = new ParticleModel({
         rMin: 0.2,
-        rMax: 0.8,
+        rMax: 1.0,
         vdMax: 1.5,
         beta: 1,
         tau: 0.5,

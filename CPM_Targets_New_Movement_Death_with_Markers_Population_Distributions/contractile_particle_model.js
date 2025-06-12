@@ -9,7 +9,7 @@ const targetColors = ['green', 'purple', 'orange', 'cyan', 'magenta']; // List o
 const DEMOGRAPHICS = {
     YOUTH: {
         name: 'Youth',
-        rMin: 0.15,     // Smaller minimum radius
+        rMin: 0.1,     // Smaller minimum radius
         rMax: 0.6,      // Smaller maximum radius  
         vdMax: 2.0,     // Faster maximum velocity
         color: '#4CAF50',  // Green tint
@@ -20,7 +20,7 @@ const DEMOGRAPHICS = {
     ADULT: {
         name: 'Adult',
         rMin: 0.2,      // Standard radius
-        rMax: 0.8,      // Standard maximum radius
+        rMax: 1.0,      // Standard maximum radius
         vdMax: 1.5,     // Standard velocity
         color: '#2196F3',  // Blue tint
         stressThreshold: 3.0,  // Standard stress tolerance
@@ -30,7 +30,7 @@ const DEMOGRAPHICS = {
     ELDERLY: {
         name: 'Elderly',
         rMin: 0.18,     // Slightly smaller radius
-        rMax: 0.75,     // Slightly smaller max radius
+        rMax: 0.9,     // Slightly smaller max radius
         vdMax: 0.8,     // Much slower velocity
         color: '#FF9800',  // Orange tint
         stressThreshold: 2,  // Lower stress tolerance
