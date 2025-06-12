@@ -11,3 +11,9 @@ Another addition is the removal of particles that reached the target, though thi
 
 The model essentially works as in the `simulation_loop.png`, where we first find contacts between particles, then adjust the radii accordingly, compute the corresponding velocities,
 update their position, then remove the particles that reach the target, and continually iterate through this until all particles have reached the targets.
+
+The model before starting the simulation can be seen below:
+![Model Initialization](CPM_Start.png)
+
+The model after running for a few seconds can be seen below:
+![Model Initialization](CPM_Running.png)
